@@ -1,31 +1,52 @@
 import React, { useState, useRef, Suspense } from "react";
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import { OrbitControls, Text, Box, Sphere, useGLTF } from "@react-three/drei";
-import { ShoppingCart, Navigation, Package, MapPin } from "lucide-react";
+import {
+  ShoppingCart,
+  Navigation,
+  Package,
+  MapPin,
+  ArrowLeft,
+  ArrowRight,
+  ArrowUp,
+} from "lucide-react";
 import * as THREE from "three";
 
-// Camera positions for different areas
+// Fixed camera positions for different areas
 const cameraPositions = {
-  stadium: { position: [0, 8, 15], target: [0, 0, 0] },
-  locker: { position: [-20, 5, 0], target: [-20, 0, -5] },
-  golf: { position: [20, 5, 0], target: [20, 0, -5] },
+  stadium: {
+    position: [0, 0.1, 1],
+    target: [0, 0, 0],
+    fov: 60,
+  },
+  locker: {
+    position: [-13, 1.5, 4.5],
+    target: [0, -5, 5],
+    fov: 70,
+  },
+  golf: {
+    position: [8, 0.5, 0.1],
+    target: [20, 0, 0],
+    fov: 70,
+  },
 };
 
-// Product data with 3D positions
+// Product data with 3D positions adjusted for different areas
 const products = {
   stadium: [
-    { id: 1, name: "Stadium T-Shirt", price: 35, position: [3, 2, 8] },
-    { id: 2, name: "Team Cap", price: 25, position: [5, 2, 8] },
+    { id: 1, name: "Stadium T-Shirt", price: 35, position: [0, 0.3, 0] },
+    { id: 2, name: "Team Cap", price: 25, position: [2, 0.3, 0] },
+    { id: 9, name: "Stadium Hoodie", price: 65, position: [-2, 0.3, 0] },
   ],
   locker: [
-    { id: 3, name: "Basketball Jersey", price: 89, position: [-18, 2, -2] },
-    { id: 4, name: "Athletic Shorts", price: 45, position: [-22, 2, -2] },
-    { id: 5, name: "High-Top Sneakers", price: 150, position: [-20, 2, -8] },
+    { id: 3, name: "Basketball Jersey", price: 89, position: [-10, 0.5, 4.5] },
+    { id: 4, name: "Athletic Shorts", price: 45, position: [-10, 0.5, 3.5] },
+    { id: 5, name: "High-Top Sneakers", price: 150, position: [-10, 0.5, 5.5] },
   ],
   golf: [
-    { id: 6, name: "Golf Driver", price: 299, position: [18, 2, -2] },
-    { id: 7, name: "Golf Balls Set", price: 25, position: [22, 2, -2] },
-    { id: 8, name: "Golf Glove", price: 35, position: [20, 2, -8] },
+    { id: 6, name: "Golf Driver", price: 299, position: [10, 0.3, 0.8] },
+    { id: 7, name: "Golf Balls Set", price: 25, position: [10, 0.3, 0.1] },
+    { id: 8, name: "Golf Glove", price: 35, position: [10, 0.3, -0.6] },
   ],
 };
 
@@ -62,55 +83,6 @@ function LoadingFallback() {
   );
 }
 
-// Teleport hotspot component
-function TeleportHotspot({
-  position,
-  label,
-  targetLocation,
-  onTeleport,
-  color = "#ff6b6b",
-}) {
-  const meshRef = useRef();
-  const [hovered, setHovered] = useState(false);
-
-  useFrame((state) => {
-    if (meshRef.current) {
-      meshRef.current.rotation.y = state.clock.elapsedTime * 0.5;
-      meshRef.current.position.y =
-        position[1] + Math.sin(state.clock.elapsedTime * 2) * 0.2;
-    }
-  });
-
-  return (
-    <group position={position}>
-      <Box
-        ref={meshRef}
-        args={[1, 0.3, 1]}
-        onPointerOver={() => setHovered(true)}
-        onPointerOut={() => setHovered(false)}
-        onClick={() => onTeleport(targetLocation)}
-      >
-        <meshStandardMaterial
-          color={hovered ? "#ffffff" : color}
-          emissive={color}
-          emissiveIntensity={hovered ? 0.5 : 0.2}
-          transparent
-          opacity={0.9}
-        />
-      </Box>
-      <Text
-        position={[0, 2, 0]}
-        fontSize={0.4}
-        color="white"
-        anchorX="center"
-        anchorY="middle"
-      >
-        {label}
-      </Text>
-    </group>
-  );
-}
-
 // Animated product display
 function Product({ product, onAddToCart }) {
   const meshRef = useRef();
@@ -128,7 +100,7 @@ function Product({ product, onAddToCart }) {
     <group position={product.position}>
       <Box
         ref={meshRef}
-        args={[0.8, 0.8, 0.8]}
+        args={[0.4, 0.4, 0.4]}
         onPointerOver={() => setHovered(true)}
         onPointerOut={() => setHovered(false)}
         onClick={() => onAddToCart(product)}
@@ -141,7 +113,7 @@ function Product({ product, onAddToCart }) {
       </Box>
       <Text
         position={[0, -0.8, 0]}
-        fontSize={0.3}
+        fontSize={0.2}
         color="white"
         anchorX="center"
         anchorY="middle"
@@ -161,10 +133,11 @@ function Product({ product, onAddToCart }) {
   );
 }
 
-// Camera controller component
-function CameraController({
+// Fixed Camera Controller - no user controls during transitions
+function FixedCameraController({
   targetPosition,
   targetLookAt,
+  targetFov,
   isAnimating,
   onAnimationComplete,
 }) {
@@ -174,13 +147,15 @@ function CameraController({
   useFrame(() => {
     if (isAnimating && targetPosition && targetLookAt) {
       // Smoothly animate camera to target position
-      camera.position.lerp(new THREE.Vector3(...targetPosition), 0.05);
+      camera.position.lerp(new THREE.Vector3(...targetPosition), 0.08);
+      camera.fov = THREE.MathUtils.lerp(camera.fov, targetFov, 0.08);
+      camera.updateProjectionMatrix();
 
       // Update controls target
       if (controlsRef.current) {
         controlsRef.current.target.lerp(
           new THREE.Vector3(...targetLookAt),
-          0.05
+          0.08
         );
         controlsRef.current.update();
       }
@@ -198,12 +173,12 @@ function CameraController({
   return (
     <OrbitControls
       ref={controlsRef}
-      enablePan={true}
-      enableZoom={true}
-      enableRotate={true}
+      enablePan={false}
+      enableZoom={false}
+      enableRotate={false}
       maxPolarAngle={Math.PI / 2}
-      minDistance={2}
-      maxDistance={30}
+      minDistance={5}
+      maxDistance={15}
       enableDamping={true}
       dampingFactor={0.05}
     />
@@ -211,7 +186,9 @@ function CameraController({
 }
 
 // Main 3D scene component
-function Scene3D({ currentArea, onAddToCart, onTeleport }) {
+function Scene3D({ currentArea, onAddToCart }) {
+  const currentProducts = products[currentArea] || [];
+
   return (
     <>
       {/* Load the Stadium GLB Model */}
@@ -219,85 +196,83 @@ function Scene3D({ currentArea, onAddToCart, onTeleport }) {
         <StadiumModel />
       </Suspense>
 
-      {/* Teleport Hotspots - You may need to adjust these positions based on your GLB model */}
-      <TeleportHotspot
-        position={[-10, 1, -8]}
-        label="LOCKER ROOM"
-        targetLocation="locker"
-        onTeleport={onTeleport}
-        color="#e74c3c"
-      />
-      <TeleportHotspot
-        position={[10, 1, -8]}
-        label="GOLF SIM"
-        targetLocation="golf"
-        onTeleport={onTeleport}
-        color="#27ae60"
-      />
-      <TeleportHotspot
-        position={[-15, 1, 2]}
-        label="MAIN STADIUM"
-        targetLocation="stadium"
-        onTeleport={onTeleport}
-        color="#3498db"
-      />
-      <TeleportHotspot
-        position={[15, 1, 2]}
-        label="MAIN STADIUM"
-        targetLocation="stadium"
-        onTeleport={onTeleport}
-        color="#3498db"
-      />
+      {/* Products for current area only */}
+      {currentProducts.map((product) => (
+        <Product key={product.id} product={product} onAddToCart={onAddToCart} />
+      ))}
 
-      {/* Products for all areas */}
-      {Object.entries(products).map(([area, areaProducts]) =>
-        areaProducts.map((product) => (
-          <Product
-            key={product.id}
-            product={product}
-            onAddToCart={onAddToCart}
-          />
-        ))
-      )}
+      {/* Lighting setup */}
+      <ambientLight intensity={0.5} />
+      <directionalLight position={[10, 10, 10]} intensity={1} castShadow />
+      <pointLight position={[1, 3, 0]} intensity={0.8} />
+      <pointLight position={[-20, 8, -5]} intensity={0.6} color="#ffffff" />
+      <pointLight position={[20, 8, -5]} intensity={0.6} color="#ffffff" />
 
-      {/* Lighting */}
-      <ambientLight intensity={0.4} />
-      <pointLight position={[10, 10, 10]} intensity={1} />
-      <pointLight position={[-10, 10, 10]} intensity={0.5} />
-      <pointLight position={[0, 10, -10]} intensity={0.5} />
-      <pointLight position={[-20, 8, -5]} intensity={0.8} color="#ffffff" />
-      <pointLight position={[20, 8, -5]} intensity={0.8} color="#ffffff" />
-
-      {/* Stadium lights */}
-      <Sphere args={[0.5]} position={[-10, 8, -10]}>
+      {/* Stadium accent lights */}
+      <Sphere args={[0.3]} position={[-10, 12, -10]}>
         <meshStandardMaterial
           color="#ffff00"
           emissive="#ffff00"
-          emissiveIntensity={0.5}
+          emissiveIntensity={0.3}
         />
       </Sphere>
-      <Sphere args={[0.5]} position={[10, 8, -10]}>
+      <Sphere args={[0.3]} position={[10, 12, -10]}>
         <meshStandardMaterial
           color="#ffff00"
           emissive="#ffff00"
-          emissiveIntensity={0.5}
+          emissiveIntensity={0.3}
         />
       </Sphere>
-      <Sphere args={[0.5]} position={[-10, 8, 10]}>
+      <Sphere args={[0.3]} position={[-10, 12, 10]}>
         <meshStandardMaterial
           color="#ffff00"
           emissive="#ffff00"
-          emissiveIntensity={0.5}
+          emissiveIntensity={0.3}
         />
       </Sphere>
-      <Sphere args={[0.5]} position={[10, 8, 10]}>
+      <Sphere args={[0.3]} position={[10, 12, 10]}>
         <meshStandardMaterial
           color="#ffff00"
           emissive="#ffff00"
-          emissiveIntensity={0.5}
+          emissiveIntensity={0.3}
         />
       </Sphere>
     </>
+  );
+}
+
+// Teleport Arrow Component
+function TeleportArrow({ direction, label, onClick, disabled }) {
+  const getArrowIcon = () => {
+    switch (direction) {
+      case "left":
+        return <ArrowLeft size={24} />;
+      case "right":
+        return <ArrowRight size={24} />;
+      case "up":
+        return <ArrowUp size={24} />;
+      default:
+        return <Navigation size={24} />;
+    }
+  };
+
+  return (
+    <button
+      onClick={onClick}
+      disabled={disabled}
+      className={`
+        flex items-center gap-2 px-4 py-3 rounded-lg font-medium transition-all
+        ${
+          disabled
+            ? "bg-gray-700 text-gray-500 cursor-not-allowed"
+            : "bg-blue-600 hover:bg-blue-700 text-white hover:scale-105 active:scale-95"
+        }
+        shadow-lg backdrop-blur-sm
+      `}
+    >
+      {getArrowIcon()}
+      <span className="text-sm font-semibold">{label}</span>
+    </button>
   );
 }
 
@@ -330,79 +305,108 @@ export default function Stadium3DStore() {
   const totalPrice = cart.reduce((sum, item) => sum + item.price, 0);
   const currentProducts = products[currentArea] || [];
 
+  // Get available teleport destinations
+  const getAvailableDestinations = () => {
+    const destinations = [];
+
+    if (currentArea !== "locker") {
+      destinations.push({
+        area: "locker",
+        label: "Locker Room",
+        direction: "left",
+      });
+    }
+    if (currentArea !== "stadium") {
+      destinations.push({
+        area: "stadium",
+        label: "Main Stadium",
+        direction: "up",
+      });
+    }
+    if (currentArea !== "golf") {
+      destinations.push({
+        area: "golf",
+        label: "Golf Sim",
+        direction: "right",
+      });
+    }
+
+    return destinations;
+  };
+
   return (
     <div className="w-full h-screen bg-black relative">
       {/* 3D Canvas */}
-      <Canvas camera={{ position: cameraPositions.stadium.position, fov: 60 }}>
-        <Scene3D
-          currentArea={currentArea}
-          onAddToCart={addToCart}
-          onTeleport={handleTeleport}
-        />
+      <Canvas
+        camera={{
+          position: cameraPositions.stadium.position,
+          fov: cameraPositions.stadium.fov,
+        }}
+      >
+        <Scene3D currentArea={currentArea} onAddToCart={addToCart} />
 
-        <CameraController
+        <FixedCameraController
           targetPosition={cameraPositions[currentArea]?.position}
           targetLookAt={cameraPositions[currentArea]?.target}
+          targetFov={cameraPositions[currentArea]?.fov}
           isAnimating={isAnimating}
           onAnimationComplete={handleAnimationComplete}
         />
       </Canvas>
 
-      {/* UI Overlay */}
-      <div className="absolute top-4 right-4 z-10 flex flex-col gap-2">
+      {/* Top UI Bar */}
+      <div className="absolute top-4 left-4 right-4 z-10 flex justify-between items-start">
+        {/* Current Area Info */}
+        <div className="flex flex-col gap-2">
+          <div className="bg-gray-800/90 text-white px-4 py-2 rounded-lg shadow-lg flex items-center gap-2 backdrop-blur-sm">
+            <MapPin size={16} />
+            <span className="capitalize font-medium">
+              {currentArea === "stadium"
+                ? "Main Stadium"
+                : currentArea === "locker"
+                ? "Locker Room"
+                : currentArea === "golf"
+                ? "Golf Simulator"
+                : currentArea}
+            </span>
+          </div>
+
+          <div className="bg-gray-800/90 text-white px-4 py-2 rounded-lg shadow-lg flex items-center gap-2 backdrop-blur-sm">
+            <Package size={16} />
+            <span className="text-sm">
+              {currentProducts.length} items available
+            </span>
+          </div>
+        </div>
+
         {/* Cart Button */}
         <button
           onClick={() => setShowCart(!showCart)}
-          className="bg-blue-600 hover:bg-blue-700 text-white p-3 rounded-full shadow-lg transition-colors flex items-center gap-2"
+          className="bg-blue-600 hover:bg-blue-700 text-white p-3 rounded-full shadow-lg transition-all hover:scale-105 active:scale-95 flex items-center gap-2 backdrop-blur-sm"
         >
           <ShoppingCart size={20} />
           <span className="bg-red-500 text-white rounded-full px-2 py-1 text-xs min-w-6 text-center">
             {cart.length}
           </span>
         </button>
-
-        {/* Current Area Indicator */}
-        <div className="bg-gray-800 text-white px-4 py-2 rounded-lg shadow-lg flex items-center gap-2">
-          <MapPin size={16} />
-          <span className="capitalize font-medium">
-            {currentArea === "stadium"
-              ? "Main Stadium"
-              : currentArea === "locker"
-              ? "Locker Room"
-              : currentArea === "golf"
-              ? "Golf Simulator"
-              : currentArea}
-          </span>
-        </div>
-
-        {/* Available Products in Current Area */}
-        <div className="bg-gray-800 text-white px-4 py-2 rounded-lg shadow-lg flex items-center gap-2">
-          <Package size={16} />
-          <span className="text-sm">{currentProducts.length} items here</span>
-        </div>
       </div>
 
-      {/* Area Navigation */}
-      <div className="absolute bottom-4 right-4 z-10 flex gap-2">
-        {Object.keys(cameraPositions).map((area) => (
-          <button
-            key={area}
-            onClick={() => handleTeleport(area)}
+      {/* Teleport Navigation Arrows */}
+      <div className="absolute left-4 top-1/2 transform -translate-y-1/2 z-10 flex flex-col gap-3">
+        {getAvailableDestinations().map((dest) => (
+          <TeleportArrow
+            key={dest.area}
+            direction={dest.direction}
+            label={dest.label}
+            onClick={() => handleTeleport(dest.area)}
             disabled={isAnimating}
-            className={`px-4 py-2 rounded-lg font-medium transition-colors ${
-              currentArea === area
-                ? "bg-blue-600 text-white"
-                : "bg-gray-700 text-gray-300 hover:bg-gray-600"
-            } ${isAnimating ? "opacity-50 cursor-not-allowed" : ""}`}
-          >
-            {area.charAt(0).toUpperCase() + area.slice(1)}
-          </button>
+          />
         ))}
       </div>
 
       {/* Shopping Cart Sidebar */}
       {showCart && (
-        <div className="absolute top-0 right-0 w-80 h-full bg-gray-900 text-white p-4 z-20 overflow-y-auto">
+        <div className="absolute top-0 right-0 w-80 h-full bg-gray-900/95 text-white p-4 z-20 overflow-y-auto backdrop-blur-sm">
           <div className="flex justify-between items-center mb-4">
             <h2 className="text-xl font-bold flex items-center gap-2">
               <ShoppingCart size={20} />
@@ -410,7 +414,7 @@ export default function Stadium3DStore() {
             </h2>
             <button
               onClick={() => setShowCart(false)}
-              className="text-gray-400 hover:text-white text-xl"
+              className="text-gray-400 hover:text-white text-xl transition-colors"
             >
               ×
             </button>
@@ -424,7 +428,7 @@ export default function Stadium3DStore() {
                 {cart.map((item, index) => (
                   <div
                     key={index}
-                    className="bg-gray-800 p-3 rounded-lg flex justify-between items-center"
+                    className="bg-gray-800/80 p-3 rounded-lg flex justify-between items-center"
                   >
                     <div>
                       <h3 className="font-medium">{item.name}</h3>
@@ -432,7 +436,7 @@ export default function Stadium3DStore() {
                     </div>
                     <button
                       onClick={() => removeFromCart(index)}
-                      className="text-red-400 hover:text-red-300 text-sm"
+                      className="text-red-400 hover:text-red-300 text-sm transition-colors"
                     >
                       Remove
                     </button>
@@ -457,19 +461,37 @@ export default function Stadium3DStore() {
       )}
 
       {/* Instructions */}
-      <div className="absolute bottom-4 left-4 z-10 bg-gray-800 text-white p-4 rounded-lg shadow-lg max-w-sm">
+      <div className="absolute bottom-4 left-4 z-10 bg-gray-800/90 text-white p-4 rounded-lg shadow-lg max-w-sm backdrop-blur-sm">
         <h3 className="font-bold mb-2 flex items-center gap-2">
           <Navigation size={16} />
           Controls
         </h3>
         <ul className="text-sm space-y-1 text-gray-300">
-          <li>🖱️ Left click + drag to rotate view</li>
+          <li>🎯 Use arrow buttons to navigate areas</li>
+          <li>🖱️ Click and drag to look around</li>
           <li>🔍 Scroll to zoom in/out</li>
-          <li>✨ Click glowing teleport spots to move</li>
           <li>📦 Click floating products to add to cart</li>
-          <li>🎯 Use bottom-right buttons for quick navigation</li>
+          <li>🛒 Click cart icon to view purchases</li>
         </ul>
       </div>
+
+      {/* Loading Overlay */}
+      {isAnimating && (
+        <div className="absolute inset-0 bg-black/20 z-30 flex items-center justify-center">
+          <div className="bg-gray-800/90 text-white px-6 py-3 rounded-lg shadow-lg backdrop-blur-sm">
+            <span className="flex items-center gap-2">
+              <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+              Moving to{" "}
+              {currentArea === "stadium"
+                ? "Main Stadium"
+                : currentArea === "locker"
+                ? "Locker Room"
+                : "Golf Simulator"}
+              ...
+            </span>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
