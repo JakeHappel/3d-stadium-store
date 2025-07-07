@@ -1,6 +1,6 @@
-import React, { useState, useRef, useMemo } from "react";
+import React, { useState, useRef, Suspense } from "react";
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
-import { OrbitControls, Text, Box, Sphere, Cylinder } from "@react-three/drei";
+import { OrbitControls, Text, Box, Sphere, useGLTF } from "@react-three/drei";
 import { ShoppingCart, Navigation, Package, MapPin } from "lucide-react";
 import * as THREE from "three";
 
@@ -29,6 +29,39 @@ const products = {
   ],
 };
 
+// Stadium GLB Model Component
+function StadiumModel() {
+  const { scene } = useGLTF("/assets/stadiumcomplex.glb");
+
+  // Clone the scene to avoid issues with multiple instances
+  const clonedScene = scene.clone();
+
+  return <primitive object={clonedScene} />;
+}
+
+// Preload the GLB file
+useGLTF.preload("/assets/stadiumcomplex.glb");
+
+// Loading fallback component
+function LoadingFallback() {
+  return (
+    <group>
+      <Text
+        position={[0, 0, 0]}
+        fontSize={1}
+        color="white"
+        anchorX="center"
+        anchorY="middle"
+      >
+        Loading Stadium...
+      </Text>
+      <Box args={[0.5, 0.5, 0.5]} position={[0, -2, 0]}>
+        <meshStandardMaterial color="#4ecdc4" />
+      </Box>
+    </group>
+  );
+}
+
 // Teleport hotspot component
 function TeleportHotspot({
   position,
@@ -50,9 +83,9 @@ function TeleportHotspot({
 
   return (
     <group position={position}>
-      <Cylinder
+      <Box
         ref={meshRef}
-        args={[1, 1, 0.3, 8]}
+        args={[1, 0.3, 1]}
         onPointerOver={() => setHovered(true)}
         onPointerOut={() => setHovered(false)}
         onClick={() => onTeleport(targetLocation)}
@@ -64,7 +97,7 @@ function TeleportHotspot({
           transparent
           opacity={0.9}
         />
-      </Cylinder>
+      </Box>
       <Text
         position={[0, 2, 0]}
         fontSize={0.4}
@@ -179,89 +212,14 @@ function CameraController({
 
 // Main 3D scene component
 function Scene3D({ currentArea, onAddToCart, onTeleport }) {
-  // Your 3D models will be loaded here
-  // For now, I'll create placeholder geometry representing your stadium areas
-
   return (
     <>
-      {/* Stadium Area - Main court */}
-      <group>
-        {/* Stadium floor */}
-        <mesh position={[0, -1, 0]} rotation={[-Math.PI / 2, 0, 0]}>
-          <planeGeometry args={[40, 40]} />
-          <meshStandardMaterial color="#8B4513" />
-        </mesh>
+      {/* Load the Stadium GLB Model */}
+      <Suspense fallback={<LoadingFallback />}>
+        <StadiumModel />
+      </Suspense>
 
-        {/* Basketball court */}
-        <mesh position={[0, -0.9, 0]} rotation={[-Math.PI / 2, 0, 0]}>
-          <planeGeometry args={[15, 8]} />
-          <meshStandardMaterial color="#DEB887" />
-        </mesh>
-
-        {/* Stadium walls */}
-        <mesh position={[0, 5, -20]}>
-          <planeGeometry args={[40, 10]} />
-          <meshStandardMaterial color="#2c3e50" />
-        </mesh>
-        <mesh position={[20, 5, 0]} rotation={[0, -Math.PI / 2, 0]}>
-          <planeGeometry args={[40, 10]} />
-          <meshStandardMaterial color="#2c3e50" />
-        </mesh>
-        <mesh position={[-20, 5, 0]} rotation={[0, Math.PI / 2, 0]}>
-          <planeGeometry args={[40, 10]} />
-          <meshStandardMaterial color="#2c3e50" />
-        </mesh>
-      </group>
-
-      {/* Locker Room Area */}
-      <group>
-        {/* Locker room floor */}
-        <mesh position={[-20, -1, -5]} rotation={[-Math.PI / 2, 0, 0]}>
-          <planeGeometry args={[15, 15]} />
-          <meshStandardMaterial color="#34495e" />
-        </mesh>
-
-        {/* Lockers */}
-        {[-4, -2, 0, 2, 4].map((offset, i) => (
-          <mesh key={i} position={[-20 + offset, 1, -12]}>
-            <boxGeometry args={[1.5, 4, 1]} />
-            <meshStandardMaterial color="#7f8c8d" />
-          </mesh>
-        ))}
-
-        {/* Locker room walls */}
-        <mesh position={[-20, 3, -12]}>
-          <planeGeometry args={[15, 6]} />
-          <meshStandardMaterial color="#2c3e50" />
-        </mesh>
-      </group>
-
-      {/* Golf Sim Area */}
-      <group>
-        {/* Golf sim floor */}
-        <mesh position={[20, -1, -5]} rotation={[-Math.PI / 2, 0, 0]}>
-          <planeGeometry args={[15, 15]} />
-          <meshStandardMaterial color="#2d5016" />
-        </mesh>
-
-        {/* Golf simulator screen */}
-        <mesh position={[20, 3, -12]}>
-          <planeGeometry args={[8, 4]} />
-          <meshStandardMaterial
-            color="#87ceeb"
-            emissive="#87ceeb"
-            emissiveIntensity={0.2}
-          />
-        </mesh>
-
-        {/* Golf tee area */}
-        <mesh position={[20, -0.9, 2]} rotation={[-Math.PI / 2, 0, 0]}>
-          <cylinderGeometry args={[3, 3, 0.1]} />
-          <meshStandardMaterial color="#228B22" />
-        </mesh>
-      </group>
-
-      {/* Teleport Hotspots */}
+      {/* Teleport Hotspots - You may need to adjust these positions based on your GLB model */}
       <TeleportHotspot
         position={[-10, 1, -8]}
         label="LOCKER ROOM"
